@@ -217,8 +217,31 @@ class _PlayerPageState extends State<PlayerPage> {
       );
     }
 
-    // media_kit 自带 Material 控件：进度条、播放/暂停、音量、倍速、
-    // 音轨/字幕轨选择、全屏，桌面与移动端自动适配。
+    final tvMode = context.read<AppState>().tvMode;
+
+    if (tvMode) {
+      // 电视：Netflix 式屏上控制层，media_kit 触摸控件整个关掉
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Video(controller: _controller, controls: NoVideoControls),
+            _TvControls(
+              player: _player,
+              title: _title,
+              isEpisode: _current.type == 'Episode',
+              onNextEpisode: () => _playSibling(1),
+              onShowSettings: _showTvMenu,
+              onSeekBy: _seekBy,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 桌面/手机：media_kit 自带 Material 控件：进度条、播放/暂停、
+    // 音量、倍速、音轨/字幕轨选择、全屏，桌面与移动端自动适配。
     final Widget theme = MaterialVideoControlsTheme(
       normal: _controlsTheme(false),
       fullscreen: _controlsTheme(true),
@@ -234,54 +257,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: _wrapTvKeys(theme),
-    );
-  }
-
-  /// 电视模式：遥控器按键映射。确认=播放/暂停，左右=±10 秒，上下=切换分集。
-  /// 非电视模式原样返回，不碰桌面端已有的键盘快捷键。
-  Widget _wrapTvKeys(Widget child) {
-    if (!context.read<AppState>().tvMode) return child;
-    return Focus(
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event is KeyUpEvent) return KeyEventResult.ignored;
-        final key = event.logicalKey;
-        if (key == LogicalKeyboardKey.arrowRight) {
-          _seekBy(const Duration(seconds: 10));
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.arrowLeft) {
-          _seekBy(const Duration(seconds: -10));
-          return KeyEventResult.handled;
-        }
-        // 上下 = 切换分集（仅剧集有效，电影按了无动作）
-        if (key == LogicalKeyboardKey.arrowDown ||
-            key == LogicalKeyboardKey.mediaTrackNext) {
-          _playSibling(1);
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.arrowUp ||
-            key == LogicalKeyboardKey.mediaTrackPrevious) {
-          _playSibling(-1);
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.select ||
-            key == LogicalKeyboardKey.enter ||
-            key == LogicalKeyboardKey.space ||
-            key == LogicalKeyboardKey.mediaPlayPause) {
-          _player.playOrPause();
-          return KeyEventResult.handled;
-        }
-        // 遥控器「菜单」键 → 字幕/音轨/倍速面板
-        if (key == LogicalKeyboardKey.contextMenu ||
-            key == LogicalKeyboardKey.f10) {
-          _showTvMenu();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: child,
+      body: theme,
     );
   }
 
@@ -503,4 +479,338 @@ class _PlayerPageState extends State<PlayerPage> {
                 r, r == 1.0 ? '正常' : '${r}x', _player.state.rate == r))
             .toList(),
       );
+}
+
+/// Netflix 式电视控制层：
+/// - 隐藏时：确认=暂停并呼出；左右=±10 秒（同时短暂显示）；上下=呼出
+/// - 显示时：D-pad 在按钮间移动焦点，确认激活；4 秒无操作自动隐藏（暂停时常驻）
+/// - 按钮行：快退 / 播放暂停 / 快进 / 下一集(剧集) / 字幕和音频 / 倍速
+class _TvControls extends StatefulWidget {
+  final Player player;
+  final String title;
+  final bool isEpisode;
+  final VoidCallback onNextEpisode;
+  final VoidCallback onShowSettings;
+  final void Function(Duration) onSeekBy;
+
+  const _TvControls({
+    required this.player,
+    required this.title,
+    required this.isEpisode,
+    required this.onNextEpisode,
+    required this.onShowSettings,
+    required this.onSeekBy,
+  });
+
+  @override
+  State<_TvControls> createState() => _TvControlsState();
+}
+
+class _TvControlsState extends State<_TvControls> {
+  bool _visible = true;
+  Timer? _hideTimer;
+  final _rootFocus = FocusNode(debugLabel: 'tv-controls-root');
+  final _playFocus = FocusNode(debugLabel: 'tv-play');
+
+  Player get _player => widget.player;
+
+  @override
+  void initState() {
+    super.initState();
+    _restartHideTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _playFocus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _rootFocus.dispose();
+    _playFocus.dispose();
+    super.dispose();
+  }
+
+  void _restartHideTimer() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 4), () {
+      // 暂停时控制层常驻，符合 Netflix 行为
+      if (mounted && _player.state.playing) _hide();
+    });
+  }
+
+  void _show({bool focusPlay = true}) {
+    if (!_visible) {
+      setState(() => _visible = true);
+      if (focusPlay) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _playFocus.requestFocus();
+        });
+      }
+    }
+    _restartHideTimer();
+  }
+
+  void _hide() {
+    if (!_visible) return;
+    setState(() => _visible = false);
+    _rootFocus.requestFocus();
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+
+    // 菜单键任何时候都开字幕/音轨/倍速面板
+    if (key == LogicalKeyboardKey.contextMenu ||
+        key == LogicalKeyboardKey.f10) {
+      widget.onShowSettings();
+      return KeyEventResult.handled;
+    }
+
+    if (_visible) {
+      // 显示中：任何按键都续命；导航与激活交给焦点系统
+      _restartHideTimer();
+      if (key == LogicalKeyboardKey.goBack ||
+          key == LogicalKeyboardKey.escape) {
+        _hide();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
+    // 隐藏中
+    if (key == LogicalKeyboardKey.arrowRight) {
+      widget.onSeekBy(const Duration(seconds: 10));
+      _show(focusPlay: false);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      widget.onSeekBy(const Duration(seconds: -10));
+      _show(focusPlay: false);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp ||
+        key == LogicalKeyboardKey.arrowDown) {
+      _show();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.space ||
+        key == LogicalKeyboardKey.mediaPlayPause) {
+      _player.playOrPause();
+      _show();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  String _fmt(Duration d) {
+    final h = d.inHours;
+    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: _rootFocus,
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: AnimatedOpacity(
+        opacity: _visible ? 1 : 0,
+        duration: const Duration(milliseconds: 200),
+        child: ExcludeFocus(
+          excluding: !_visible,
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.black54, Colors.transparent, Colors.black87],
+                stops: [0, 0.4, 1],
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(48, 24, 48, 32),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 20),
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                _buildSeekBar(),
+                const SizedBox(height: 20),
+                _buildButtonRow(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeekBar() {
+    return StreamBuilder<Duration>(
+      stream: _player.stream.position,
+      initialData: _player.state.position,
+      builder: (context, snap) {
+        final pos = snap.data ?? Duration.zero;
+        final dur = _player.state.duration;
+        final progress = dur.inMilliseconds > 0
+            ? pos.inMilliseconds / dur.inMilliseconds
+            : 0.0;
+        final primary = Theme.of(context).colorScheme.primary;
+        return Row(
+          children: [
+            Text(_fmt(pos),
+                style: const TextStyle(color: Colors.white, fontSize: 14)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0.0, 1.0),
+                  minHeight: 5,
+                  backgroundColor: Colors.white24,
+                  valueColor: AlwaysStoppedAnimation(primary),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Text(_fmt(dur),
+                style: const TextStyle(color: Colors.white70, fontSize: 14)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildButtonRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _TvButton(
+          icon: Icons.replay_10,
+          label: '快退',
+          onTap: () {
+            widget.onSeekBy(const Duration(seconds: -10));
+            _restartHideTimer();
+          },
+        ),
+        StreamBuilder<bool>(
+          stream: _player.stream.playing,
+          initialData: _player.state.playing,
+          builder: (_, snap) => _TvButton(
+            focusNode: _playFocus,
+            icon: (snap.data ?? true) ? Icons.pause : Icons.play_arrow,
+            label: (snap.data ?? true) ? '暂停' : '播放',
+            big: true,
+            onTap: () {
+              _player.playOrPause();
+              _restartHideTimer();
+            },
+          ),
+        ),
+        _TvButton(
+          icon: Icons.forward_10,
+          label: '快进',
+          onTap: () {
+            widget.onSeekBy(const Duration(seconds: 10));
+            _restartHideTimer();
+          },
+        ),
+        if (widget.isEpisode)
+          _TvButton(
+            icon: Icons.skip_next,
+            label: '下一集',
+            onTap: widget.onNextEpisode,
+          ),
+        _TvButton(
+          icon: Icons.subtitles,
+          label: '字幕和音频',
+          onTap: widget.onShowSettings,
+        ),
+      ],
+    );
+  }
+}
+
+/// 电视控制按钮：聚焦时白圈高亮 + 放大 + 底部文字。
+class _TvButton extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool big;
+  final FocusNode? focusNode;
+
+  const _TvButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.big = false,
+    this.focusNode,
+  });
+
+  @override
+  State<_TvButton> createState() => _TvButtonState();
+}
+
+class _TvButtonState extends State<_TvButton> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.big ? 64.0 : 52.0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedScale(
+            scale: _focused ? 1.15 : 1.0,
+            duration: const Duration(milliseconds: 120),
+            child: Material(
+              color: _focused ? Colors.white : Colors.white12,
+              shape: const CircleBorder(),
+              child: InkWell(
+                focusNode: widget.focusNode,
+                onFocusChange: (f) => setState(() => _focused = f),
+                onTap: widget.onTap,
+                customBorder: const CircleBorder(),
+                child: SizedBox(
+                  width: size,
+                  height: size,
+                  child: Icon(
+                    widget.icon,
+                    size: widget.big ? 36 : 28,
+                    color: _focused ? Colors.black : Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            widget.label,
+            style: TextStyle(
+              color: _focused ? Colors.white : Colors.white60,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
