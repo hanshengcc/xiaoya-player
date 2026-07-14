@@ -1,0 +1,32 @@
+name: xiaoya
+description: "Xiaoya Player — 基于 Flutter + MPV 的全平台流媒体播放器，支持 Emby / Jellyfin。"
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 播放内核：libmpv 封装，全平台
+  media_kit: ^1.1.11
+  media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.5
+
+  # 网络与状态
+  http: ^1.2.1
+  provider: ^6.1.2
+  shared_preferences: ^2.2.3
+  cached_network_image: ^3.3.1
+  cupertino_icons: ^1.0.8
+  qr_flutter: ^4.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

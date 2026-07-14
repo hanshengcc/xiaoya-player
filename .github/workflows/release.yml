@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_CHANNEL: stable
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - name: Rename artifact
+        run: cp build/app/outputs/flutter-apk/app-release.apk xiaoya-${{ github.ref_name }}-android.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: xiaoya-${{ github.ref_name }}-android.apk
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev libmpv-dev mpv
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build linux --release
+      - name: Package
+        run: tar -czf xiaoya-${{ github.ref_name }}-linux-x64.tar.gz -C build/linux/x64/release/bundle .
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: xiaoya-${{ github.ref_name }}-linux-x64.tar.gz
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath xiaoya-${{ github.ref_name }}-windows-x64.zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: xiaoya-${{ github.ref_name }}-windows-x64.zip
+
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: Package
+        run: ditto -c -k --keepParent build/macos/Build/Products/Release/xiaoya.app xiaoya-${{ github.ref_name }}-macos.zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: xiaoya-${{ github.ref_name }}-macos.zip
