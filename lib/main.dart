@@ -16,7 +16,7 @@ Future<void> main() async {
   runApp(
     ChangeNotifierProvider.value(
       value: state,
-      child: const XiaoyaApp(),
+      child: const DengYingApp(),
     ),
   );
 }

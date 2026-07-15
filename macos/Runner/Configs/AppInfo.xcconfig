@@ -5,10 +5,13 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = xiaoya
+// Keep ASCII here — this drives the .app bundle/executable filename, and CI
+// scripts (ditto, shell paths) assume no Unicode. The user-facing display
+// name (灯影) is set separately via CFBundleDisplayName in Info.plist.
+PRODUCT_NAME = dengying
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.xiaoya
+PRODUCT_BUNDLE_IDENTIFIER = com.hanshengcc.dengying
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 hanshengcc. All rights reserved.

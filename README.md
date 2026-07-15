@@ -1,18 +1,24 @@
-# Xiaoya Player
+# 灯影 DengYing
 
 **English** | [简体中文](README.zh-CN.md)
 
 ### Your Emby & Jellyfin library deserves an app this good.
 
-Xiaoya Player is a fast, good-looking media player for your own collection — everything plays, everything looks right, and on TV it feels like the app you already know how to use.
+DengYing (灯影) is a fast, good-looking media player for your own collection — everything plays, everything looks right, and on TV it feels like the app you already know how to use.
 
 One app, everywhere that matters: **macOS · Windows · Linux · Android · Android TV · iOS**.
 
+<p align="center">
+  <img src="screenshots/login.png" width="32%" alt="Login screen" />
+  <img src="screenshots/detail.png" width="32%" alt="Detail page" />
+  <img src="screenshots/player.png" width="32%" alt="TV player controls" />
+</p>
+
 ---
 
-## Why Xiaoya
+## Why DengYing
 
-**Every format, no fuss.** Built on the MPV engine, Xiaoya plays almost anything you throw at it — MKV, HEVC, EAC3, DTS, whatever your rip came in — with hardware decoding, straight from the file. No transcoding, no server strain, no re-encoding your library to make it "compatible."
+**Every format, no fuss.** Built on the MPV engine, DengYing plays almost anything you throw at it — MKV, HEVC, EAC3, DTS, whatever your rip came in — with hardware decoding, straight from the file. No transcoding, no server strain, no re-encoding your library to make it "compatible."
 
 **Feels like Netflix on TV.** On-screen playback controls, a real subtitles-and-audio panel, a remote that always knows where you are. Point it, press it, it works — see [TV remote](#tv-remote) below.
 
@@ -55,10 +61,10 @@ Grab the latest build for your platform from [**Releases**](../../releases):
 
 | Platform | Download | Notes |
 |---|---|---|
-| Android / Android TV | `xiaoya-*-android.apk` | `adb install` or sideload; shows up as a TV app automatically |
-| macOS | `xiaoya-*-macos.zip` | Unsigned — right-click → Open on first launch |
-| Windows | `xiaoya-*-windows.zip` | Unzip and run `xiaoya.exe` |
-| Linux | `xiaoya-*-linux.tar.gz` | Requires `libmpv`: `sudo apt install libmpv2 mpv` |
+| Android / Android TV | `dengying-*-android.apk` | `adb install` or sideload; shows up as a TV app automatically |
+| macOS | `dengying-*-macos.zip` | Unsigned — right-click → Open on first launch |
+| Windows | `dengying-*-windows.zip` | Unzip and run `dengying.exe` |
+| Linux | `dengying-*-linux.tar.gz` | Requires `libmpv`: `sudo apt install libmpv2 mpv` |
 
 ## Get started
 
@@ -72,8 +78,8 @@ Grab the latest build for your platform from [**Releases**](../../releases):
 <summary><strong>For developers</strong> — build from source, project layout</summary>
 
 ```bash
-git clone https://github.com/hanshengcc/xiaoya-player.git
-cd xiaoya-player
+git clone https://github.com/hanshengcc/dengying-player.git
+cd dengying-player
 flutter pub get
 
 flutter run -d macos      # or windows / linux / android / ios / chrome

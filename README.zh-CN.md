@@ -1,16 +1,22 @@
-# Xiaoya Player
+# 灯影 DengYing
 
 [English](README.md) | **简体中文**
 
 ### 你的 Emby / Jellyfin 片库，配得上一个这么好用的播放器。
 
-Xiaoya Player 是一款给你自己片库用的播放器——快、好看、什么格式都能播，电视上用起来就是你熟悉的那套操作，不用重新学。
+灯影是一款给你自己片库用的播放器——快、好看、什么格式都能播，电视上用起来就是你熟悉的那套操作，不用重新学。
 
 一个 App，覆盖你在乎的所有设备：**macOS · Windows · Linux · Android · Android TV · iOS**。
 
+<p align="center">
+  <img src="screenshots/login.png" width="32%" alt="登录页" />
+  <img src="screenshots/detail.png" width="32%" alt="详情页" />
+  <img src="screenshots/player.png" width="32%" alt="电视播放控制层" />
+</p>
+
 ---
 
-## 为什么选 Xiaoya
+## 为什么选灯影
 
 **什么格式都能播，不折腾。** 基于 MPV 内核，MKV、HEVC、EAC3、DTS，不管你的片源是什么格式，硬解直播，不用服务端转码，不用为了"兼容"重新压一遍片库。
 
@@ -55,10 +61,10 @@ Xiaoya Player 是一款给你自己片库用的播放器——快、好看、什
 
 | 平台 | 产物 | 说明 |
 |---|---|---|
-| Android / Android TV | `xiaoya-*-android.apk` | `adb install` 或 U 盘安装；电视上自动识别成电视应用 |
-| macOS | `xiaoya-*-macos.zip` | 未签名——首次启动右键 → 打开 |
-| Windows | `xiaoya-*-windows.zip` | 解压运行 `xiaoya.exe` |
-| Linux | `xiaoya-*-linux.tar.gz` | 需要 libmpv：`sudo apt install libmpv2 mpv` |
+| Android / Android TV | `dengying-*-android.apk` | `adb install` 或 U 盘安装；电视上自动识别成电视应用 |
+| macOS | `dengying-*-macos.zip` | 未签名——首次启动右键 → 打开 |
+| Windows | `dengying-*-windows.zip` | 解压运行 `dengying.exe` |
+| Linux | `dengying-*-linux.tar.gz` | 需要 libmpv：`sudo apt install libmpv2 mpv` |
 
 ## 快速上手
 
@@ -72,8 +78,8 @@ Xiaoya Player 是一款给你自己片库用的播放器——快、好看、什
 <summary><strong>给开发者</strong> —— 源码构建、项目结构</summary>
 
 ```bash
-git clone https://github.com/hanshengcc/xiaoya-player.git
-cd xiaoya-player
+git clone https://github.com/hanshengcc/dengying-player.git
+cd dengying-player
 flutter pub get
 
 flutter run -d macos      # 或 windows / linux / android / ios / chrome

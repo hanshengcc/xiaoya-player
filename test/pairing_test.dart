@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:xiaoya/api/models.dart';
-import 'package:xiaoya/utils/pairing_server.dart';
+import 'package:dengying/api/models.dart';
+import 'package:dengying/utils/pairing_server.dart';
 
 void main() {
   test('局域网配对全流程：表单页 → 提交 → 成功页 → 链接失效', () async {

@@ -7,7 +7,7 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-const _channel = MethodChannel('xiaoya/device');
+const _channel = MethodChannel('dengying/device');
 
 Future<bool> detectTv() async {
   if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return false;

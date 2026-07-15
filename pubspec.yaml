@@ -1,5 +1,5 @@
-name: xiaoya
-description: "Xiaoya Player — 基于 Flutter + MPV 的全平台流媒体播放器，支持 Emby / Jellyfin。"
+name: dengying
+description: "灯影 DengYing — 基于 Flutter + MPV 的全平台流媒体播放器，支持 Emby / Jellyfin。"
 publish_to: "none"
 version: 0.1.0
 

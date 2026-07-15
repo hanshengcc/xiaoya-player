@@ -114,12 +114,18 @@ class _DetailPageState extends State<DetailPage> {
 
     final item = _item!;
     final scheme = Theme.of(context).colorScheme;
+    // Hero 区文字压在背景图上——Netflix 的标准详情页布局，标题/年份/
+    // 分级/播放按钮都浮在剧照上，不是图片下面另起一块。文字颜色和阴影
+    // 固定用亮色系，不跟随浅色/深色主题：图片背后必须始终读得清楚。
+    const heroTextShadows = [
+      Shadow(color: Colors.black87, blurRadius: 12, offset: Offset(0, 2)),
+    ];
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: 480,
             pinned: true,
             leading: Padding(
               padding: const EdgeInsets.all(8),
@@ -132,9 +138,8 @@ class _DetailPageState extends State<DetailPage> {
               Padding(
                 padding: const EdgeInsets.all(8),
                 child: _GlassIconButton(
-                  icon: item.isFavorite
-                      ? Icons.favorite
-                      : Icons.favorite_border,
+                  icon:
+                      item.isFavorite ? Icons.favorite : Icons.favorite_border,
                   color: item.isFavorite ? Colors.redAccent : Colors.white,
                   onTap: _toggleFavorite,
                 ),
@@ -153,18 +158,86 @@ class _DetailPageState extends State<DetailPage> {
                     errorWidget: (_, __, ___) =>
                         Container(color: scheme.surfaceContainerHighest),
                   ),
+                  // 顶部压暗一点让返回/收藏图标在任何图上都看得清；
+                  // 底部渐深过渡到纯背景色，压住标题区好读，也和下面
+                  // 滚动内容衔接不突兀。
                   DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withValues(alpha: 0.35),
+                          Colors.black.withValues(alpha: 0.45),
                           Colors.transparent,
+                          Colors.black.withValues(alpha: 0.55),
                           Theme.of(context).scaffoldBackgroundColor,
                         ],
-                        stops: const [0, 0.4, 1],
+                        stops: const [0, 0.35, 0.75, 1],
                       ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 20,
+                    right: 20,
+                    bottom: 24,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(item.name,
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  shadows: heroTextShadows,
+                                )),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (item.productionYear != null)
+                              Text('${item.productionYear}',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      shadows: heroTextShadows)),
+                            if (item.runTime != null)
+                              Text(formatRuntime(item.runTime!),
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      shadows: heroTextShadows)),
+                            if (item.officialRating != null)
+                              _Badge(text: item.officialRating!),
+                            if (item.communityRating != null)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.star,
+                                      size: 16, color: Colors.amber),
+                                  const SizedBox(width: 2),
+                                  Text(item.communityRating!.toStringAsFixed(1),
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          shadows: heroTextShadows)),
+                                ],
+                              ),
+                          ],
+                        ),
+                        if (item.genres.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(item.genres.join(' · '),
+                              style: const TextStyle(
+                                  color: Colors.white70,
+                                  shadows: heroTextShadows)),
+                        ],
+                        if (item.isVideo) ...[
+                          const SizedBox(height: 16),
+                          _buildPlayButtons(item),
+                        ],
+                      ],
                     ),
                   ),
                 ],
@@ -173,54 +246,16 @@ class _DetailPageState extends State<DetailPage> {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.name,
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (item.productionYear != null)
-                        Text('${item.productionYear}'),
-                      if (item.runTime != null)
-                        Text(formatRuntime(item.runTime!)),
-                      if (item.officialRating != null)
-                        _Badge(text: item.officialRating!),
-                      if (item.communityRating != null)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.star,
-                                size: 16, color: Colors.amber),
-                            const SizedBox(width: 2),
-                            Text(item.communityRating!.toStringAsFixed(1)),
-                          ],
-                        ),
-                    ],
-                  ),
-                  if (item.genres.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(item.genres.join(' · '),
-                        style: TextStyle(color: scheme.onSurfaceVariant)),
-                  ],
-                  const SizedBox(height: 16),
-                  if (item.isVideo) _buildPlayButtons(item),
-                  if (item.overview != null && item.overview!.isNotEmpty) ...[
-                    const SizedBox(height: 16),
+                  if (item.overview != null && item.overview!.isNotEmpty)
                     Text(item.overview!,
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
                             ?.copyWith(height: 1.6)),
-                  ],
                   if (item.type == 'Series') ...[
                     const SizedBox(height: 20),
                     _buildSeasonSelector(),
@@ -354,20 +389,24 @@ class _DetailPageState extends State<DetailPage> {
   }
 }
 
+/// 分级角标（PG/R 等）——固定用在 hero 区图片上，颜色不跟主题走。
 class _Badge extends StatelessWidget {
   final String text;
   const _Badge({required this.text});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        border: Border.all(color: scheme.outline),
+        border: Border.all(color: Colors.white70),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(text, style: Theme.of(context).textTheme.labelSmall),
+      child: Text(text,
+          style: Theme.of(context)
+              .textTheme
+              .labelSmall
+              ?.copyWith(color: Colors.white)),
     );
   }
 }

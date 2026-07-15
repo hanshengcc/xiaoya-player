@@ -145,7 +145,7 @@ ${back ? '<button onclick="history.back()">返回修改</button>' : ''}
   String _formPage() => '''
 <!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Xiaoya Player 配对</title><style>${_css()}</style></head>
+<title>灯影 配对</title><style>${_css()}</style></head>
 <body><main>
 <h1>连接到电视</h1>
 <p>填好后提交，电视会自动登录。</p>

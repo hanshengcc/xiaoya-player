@@ -27,7 +27,7 @@ class PlayerPage extends StatefulWidget {
 class _PlayerPageState extends State<PlayerPage> {
   late final Player _player = Player(
     configuration: const PlayerConfiguration(
-      title: 'Xiaoya Player',
+      title: '灯影',
       bufferSize: 64 * 1024 * 1024,
     ),
   );

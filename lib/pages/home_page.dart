@@ -87,7 +87,7 @@ class _HomePageState extends State<HomePage> {
     final state = context.watch<AppState>();
     return Scaffold(
       appBar: AppBar(
-        title: Text(state.activeServer?.name ?? 'Xiaoya Player'),
+        title: Text(state.activeServer?.name ?? '灯影'),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:xiaoya/api/models.dart';
+import 'package:dengying/api/models.dart';
 
 void main() {
   test('ServerConfig JSON 往返', () {

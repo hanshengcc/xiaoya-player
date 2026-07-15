@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "xiaoya" "\0"
+            VALUE "CompanyName", "hanshengcc" "\0"
+            VALUE "FileDescription", "灯影" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "xiaoya" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "xiaoya.exe" "\0"
-            VALUE "ProductName", "xiaoya" "\0"
+            VALUE "InternalName", "dengying" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 hanshengcc. All rights reserved." "\0"
+            VALUE "OriginalFilename", "dengying.exe" "\0"
+            VALUE "ProductName", "灯影" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

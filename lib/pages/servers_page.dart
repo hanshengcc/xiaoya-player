@@ -15,7 +15,9 @@ class ServersPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     return Scaffold(
-      appBar: AppBar(title: const Text('服务器')),
+      // 首次启动的空态是登录入口，不是管理页——去掉 AppBar 铬边，
+      // 让下面的暗场氛围铺满全屏，跟 Netflix 的登录门页一个调子。
+      appBar: state.servers.isEmpty ? null : AppBar(title: const Text('服务器')),
       body: state.servers.isEmpty
           ? _EmptyHint(onAdd: () => _showAddSheet(context))
           : ListView.builder(
@@ -128,6 +130,8 @@ class ServersPage extends StatelessWidget {
   }
 }
 
+/// 首次启动的登录门页——固定暗场，不跟随浅色/深色主题。这是用户见到
+/// 的第一屏，Netflix 式的克制：一个品牌名、一句话、一个动作，没有别的。
 class _EmptyHint extends StatelessWidget {
   final VoidCallback onAdd;
   const _EmptyHint({required this.onAdd});
@@ -136,31 +140,47 @@ class _EmptyHint extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final tvMode = context.watch<AppState>().tvMode;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.play_circle_outline, size: 72, color: scheme.primary),
-          const SizedBox(height: 16),
-          Text('欢迎使用 Xiaoya Player',
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text('添加一个 Emby 或 Jellyfin 服务器开始使用',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: scheme.onSurfaceVariant)),
-          const SizedBox(height: 24),
-          TvFocusHighlight(
-            borderRadius: const BorderRadius.all(Radius.circular(24)),
-            child: FilledButton.icon(
-              autofocus: tvMode,
-              onPressed: onAdd,
-              icon: const Icon(Icons.add),
-              label: const Text('添加服务器'),
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: const Alignment(0, -0.2),
+          radius: 1.3,
+          colors: [
+            scheme.primary.withValues(alpha: 0.28),
+            Colors.black,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('灯影',
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 4,
+                      )),
+              const SizedBox(height: 16),
+              Text('添加一个 Emby 或 Jellyfin 服务器开始使用',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: Colors.white70)),
+              const SizedBox(height: 28),
+              TvFocusHighlight(
+                borderRadius: const BorderRadius.all(Radius.circular(24)),
+                child: FilledButton.icon(
+                  autofocus: tvMode,
+                  onPressed: onAdd,
+                  icon: const Icon(Icons.add),
+                  label: const Text('添加服务器'),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

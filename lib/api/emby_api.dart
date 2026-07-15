@@ -24,7 +24,9 @@ class EmbyApiException implements Exception {
 }
 
 class EmbyApi {
-  static const clientName = 'Xiaoya Player';
+  // HTTP 认证头的值只能是 ASCII（RFC 7230），不能塞中文，否则请求直接
+  // FormatException 崩掉——这个名字只出现在服务器后台"设备管理"列表里。
+  static const clientName = 'DengYing';
   static const clientVersion = '0.1.0';
 
   final ServerConfig server;

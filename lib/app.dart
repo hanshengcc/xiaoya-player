@@ -6,14 +6,14 @@ import 'pages/servers_page.dart';
 import 'state/app_state.dart';
 import 'theme.dart';
 
-class XiaoyaApp extends StatelessWidget {
-  const XiaoyaApp({super.key});
+class DengYingApp extends StatelessWidget {
+  const DengYingApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     return MaterialApp(
-      title: 'Xiaoya Player',
+      title: '灯影',
       debugShowCheckedModeBanner: false,
       themeMode: state.themeMode,
       theme: buildAppTheme(Brightness.light),
