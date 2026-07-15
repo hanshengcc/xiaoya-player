@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../api/emby_api.dart';
 import '../api/models.dart';
 import '../state/app_state.dart';
+import '../utils/errors.dart';
 import '../widgets/poster_card.dart';
 import 'detail_page.dart';
 import 'player_page.dart';
@@ -34,8 +35,7 @@ class _LibraryPageState extends State<LibraryPage> {
   void initState() {
     super.initState();
     _scroll.addListener(() {
-      if (_scroll.position.pixels >
-          _scroll.position.maxScrollExtent - 600) {
+      if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 600) {
         _loadMore();
       }
     });
@@ -74,7 +74,7 @@ class _LibraryPageState extends State<LibraryPage> {
       _items.addAll(result.items);
       _total = result.totalCount;
     } catch (e) {
-      _error = e.toString();
+      _error = friendlyError(e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -157,12 +157,10 @@ class _LibraryPageState extends State<LibraryPage> {
                           onTap: () {
                             if (item.isVideo) {
                               Navigator.of(context).push(MaterialPageRoute(
-                                  builder: (_) =>
-                                      DetailPage(itemId: item.id)));
+                                  builder: (_) => DetailPage(itemId: item.id)));
                             } else if (item.isFolder) {
                               Navigator.of(context).push(MaterialPageRoute(
-                                  builder: (_) =>
-                                      DetailPage(itemId: item.id)));
+                                  builder: (_) => DetailPage(itemId: item.id)));
                             } else {
                               Navigator.of(context).push(MaterialPageRoute(
                                   builder: (_) => PlayerPage(item: item)));

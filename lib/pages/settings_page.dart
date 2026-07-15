@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../utils/update_checker.dart';
 import '../widgets/tv_focus_highlight.dart';
+import '../widgets/update_dialog.dart';
 
 /// 设置页：主题、账户。每组设置放一张圆角卡片里，不是一条条平铺到底——
 /// 分组更清楚，也是 Netflix 设置页那种"一屏几大块"的排法。
@@ -82,18 +85,50 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          const _SettingsSection(
+          _SettingsSection(
             title: '关于',
-            child: ListTile(
-              leading: Icon(Icons.info_outline),
-              title: Text('灯影'),
-              subtitle: Text(
-                  'v0.1.0 · Flutter + MPV (media_kit) · 支持 Emby / Jellyfin'),
+            child: FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (context, snap) {
+                final version = snap.data?.version;
+                return Column(
+                  children: [
+                    const ListTile(
+                      leading: Icon(Icons.info_outline),
+                      title: Text('灯影'),
+                      subtitle: Text(
+                          'Flutter + MPV (media_kit) · 支持 Emby / Jellyfin'),
+                    ),
+                    TvFocusHighlight(
+                      child: ListTile(
+                        leading: const Icon(Icons.system_update_outlined),
+                        title: const Text('检查更新'),
+                        subtitle: Text(
+                            version != null ? '当前版本 v$version' : '读取版本中…'),
+                        onTap: () => _checkUpdate(context),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _checkUpdate(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('正在检查更新…')));
+    final info = await UpdateChecker.check();
+    if (!context.mounted) return;
+    messenger.hideCurrentSnackBar();
+    if (info == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('已是最新版本')));
+    } else {
+      showUpdateDialog(context, info);
+    }
   }
 }
 

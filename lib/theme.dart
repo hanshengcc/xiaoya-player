@@ -23,6 +23,23 @@ class AppMotion {
 /// 主题种子色：柔和的青蓝，观感舒适、暗色下不刺眼。
 const _seed = Color(0xFF4A7C9B);
 
+/// 品牌强调色，专给"需要在任何主题下都醒目"的实心填充用（主 CTA 按钮、
+/// 聚焦态选中的标签）。`scheme.primary` 在深色模式会被 Material3 自动
+/// 提亮成浅色调（tone ~80，为了跟深色文字够对比度），大面积实心色块
+/// 用它会发白发糯、没有品牌辨识度；这个常量不随主题切换，两种模式下
+/// 都是同一个笃定的颜色。
+const kAccentFill = _seed;
+
+/// 主 CTA 按钮样式——每个页面"这个最重要"的那一个动作用它：详情页的
+/// 播放、登录门页的添加服务器、表单提交。品牌色实心 + 白字 + 阴影，
+/// 跟其他 FilledButton（重试之类的次要动作）拉开层级。
+ButtonStyle primaryCtaStyle() => FilledButton.styleFrom(
+      backgroundColor: kAccentFill,
+      foregroundColor: Colors.white,
+      elevation: 3,
+      shadowColor: kAccentFill.withValues(alpha: 0.5),
+    );
+
 ThemeData buildAppTheme(Brightness brightness) {
   var scheme = ColorScheme.fromSeed(seedColor: _seed, brightness: brightness);
 
@@ -129,6 +146,10 @@ ThemeData buildAppTheme(Brightness brightness) {
       labelStyle: textTheme.labelLarge,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
     ),
+    // 不在这儿给 FilledButton 强制配色——FilledButtonThemeData 这一个
+    // style 对象会同时套到 FilledButton 和 FilledButton.tonal 上（Flutter
+    // 没有分开的主题槽位），强行统一颜色会把"重试"这种次要按钮跟主 CTA
+    // 拉平，反而丢了层级。主 CTA 用 primaryCtaStyle() 单独在各自按钮上指定。
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         shape: shape,

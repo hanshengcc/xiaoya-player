@@ -8,6 +8,7 @@ import '../api/emby_api.dart';
 import '../api/models.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../utils/errors.dart';
 import '../utils/format.dart';
 import '../widgets/tv_focus_highlight.dart';
 import 'player_page.dart';
@@ -52,7 +53,7 @@ class _DetailPageState extends State<DetailPage> {
         }
       }
     } catch (e) {
-      _error = e.toString();
+      _error = friendlyError(e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -278,6 +279,7 @@ class _DetailPageState extends State<DetailPage> {
         TvFocusHighlight(
           borderRadius: const BorderRadius.all(Radius.circular(24)),
           child: FilledButton.icon(
+            style: primaryCtaStyle(),
             autofocus: tvMode,
             onPressed: () => _play(item),
             icon: const Icon(Icons.play_arrow),

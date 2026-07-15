@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../api/models.dart';
 import '../state/app_state.dart';
+import '../theme.dart';
+import '../utils/errors.dart';
 import '../widgets/tv_focus_highlight.dart';
 import 'pairing_dialog.dart';
 
@@ -107,6 +109,10 @@ class ServersPage extends StatelessWidget {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('取消')),
           FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+              ),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('删除')),
         ],
@@ -172,6 +178,7 @@ class _EmptyHint extends StatelessWidget {
               TvFocusHighlight(
                 borderRadius: const BorderRadius.all(Radius.circular(24)),
                 child: FilledButton.icon(
+                  style: primaryCtaStyle(),
                   autofocus: tvMode,
                   onPressed: onAdd,
                   icon: const Icon(Icons.add),
@@ -244,7 +251,7 @@ class _AddServerFormState extends State<_AddServerForm> {
       }
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -334,12 +341,14 @@ class _AddServerFormState extends State<_AddServerForm> {
               ],
               const SizedBox(height: 20),
               FilledButton(
+                style: primaryCtaStyle(),
                 onPressed: _busy ? null : _submit,
                 child: _busy
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2))
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
                     : Text(isRelogin ? '登录' : '连接并登录'),
               ),
             ],

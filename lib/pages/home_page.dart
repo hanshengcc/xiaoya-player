@@ -4,9 +4,12 @@ import 'package:provider/provider.dart';
 import '../api/emby_api.dart';
 import '../api/models.dart';
 import '../state/app_state.dart';
+import '../utils/errors.dart';
+import '../utils/update_checker.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/section_row.dart';
 import '../widgets/tv_focus_highlight.dart';
+import '../widgets/update_dialog.dart';
 import 'detail_page.dart';
 import 'library_page.dart';
 import 'player_page.dart';
@@ -39,6 +42,22 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _load();
+    _checkUpdate();
+  }
+
+  /// 静默查一次新版本，找到了就用 SnackBar 提一句——不弹窗打断，
+  /// 12 小时内查过会自己跳过（节流逻辑在 UpdateChecker 里）。
+  Future<void> _checkUpdate() async {
+    final info = await UpdateChecker.checkThrottled();
+    if (!mounted || info == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('发现新版本 v${info.version}'),
+      action: SnackBarAction(
+        label: '查看',
+        onPressed: () => showUpdateDialog(context, info),
+      ),
+      duration: const Duration(seconds: 8),
+    ));
   }
 
   Future<void> _load() async {
@@ -60,7 +79,7 @@ class _HomePageState extends State<HomePage> {
           .toList();
       _latestCache.clear();
     } catch (e) {
-      _error = e.toString();
+      _error = friendlyError(e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -69,17 +88,17 @@ class _HomePageState extends State<HomePage> {
   void _openItem(MediaItem item) {
     if (item.isVideo) {
       // 继续观看的条目直接进播放器，从上次位置续播
-      Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => PlayerPage(item: item)));
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => PlayerPage(item: item)));
     } else {
-      Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => DetailPage(itemId: item.id)));
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => DetailPage(itemId: item.id)));
     }
   }
 
   void _openLibrary(LibraryView v) {
-    Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => LibraryPage(view: v)));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => LibraryPage(view: v)));
   }
 
   @override
@@ -92,20 +111,20 @@ class _HomePageState extends State<HomePage> {
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: '搜索',
-            onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SearchPage())),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const SearchPage())),
           ),
           IconButton(
             icon: const Icon(Icons.dns_outlined),
             tooltip: '服务器',
-            onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ServersPage())),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const ServersPage())),
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: '设置',
-            onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsPage())),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const SettingsPage())),
           ),
         ],
       ),
@@ -131,8 +150,7 @@ class _HomePageState extends State<HomePage> {
                             : SectionRow(
                                 title: '继续观看',
                                 height: 224,
-                                children: _resume
-                                    .indexed
+                                children: _resume.indexed
                                     .map((r) => PosterCard(
                                           item: r.$2,
                                           width: 280,
@@ -157,8 +175,7 @@ class _HomePageState extends State<HomePage> {
                         // 最新入库点进去先看简介，不直接开播
                         onOpenItem: (item) => Navigator.of(context).push(
                             MaterialPageRoute(
-                                builder: (_) =>
-                                    DetailPage(itemId: item.id))),
+                                builder: (_) => DetailPage(itemId: item.id))),
                         onMore: () => _openLibrary(v),
                       );
                     },
@@ -169,15 +186,13 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildLibraryChips() {
     // 没有"继续观看"时，这里是首页第一个可聚焦元素，电视需要默认落焦点
-    final autofocusFirst =
-        context.read<AppState>().tvMode && _resume.isEmpty;
+    final autofocusFirst = context.read<AppState>().tvMode && _resume.isEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: _views
-            .indexed
+        children: _views.indexed
             .map((r) => TvFocusHighlight(
                   borderRadius: const BorderRadius.all(Radius.circular(20)),
                   child: ActionChip(
@@ -234,8 +249,7 @@ class _LatestSectionState extends State<_LatestSection> {
 
   Future<void> _fetch() async {
     try {
-      final items =
-          await widget.api.getLatestItems(parentId: widget.view.id);
+      final items = await widget.api.getLatestItems(parentId: widget.view.id);
       widget.cache[widget.view.id] = items;
       if (mounted) setState(() => _items = items);
     } catch (_) {

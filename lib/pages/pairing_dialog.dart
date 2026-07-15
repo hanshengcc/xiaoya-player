@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../state/app_state.dart';
+import '../utils/errors.dart';
 import '../utils/pairing_server.dart';
 
 /// 扫码配对弹层：显示二维码，等手机提交凭据并登录。
@@ -32,7 +33,7 @@ class _PairingDialogState extends State<PairingDialog> {
       final url = await server.start();
       if (mounted) setState(() => _url = url);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = friendlyError(e));
     }
   }
 
@@ -47,7 +48,7 @@ class _PairingDialogState extends State<PairingDialog> {
         password: creds.password,
       );
     } catch (e) {
-      return e.toString();
+      return friendlyError(e);
     }
     if (mounted) {
       setState(() => _success = true);

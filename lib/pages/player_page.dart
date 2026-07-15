@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../api/emby_api.dart';
 import '../api/models.dart';
 import '../state/app_state.dart';
+import '../utils/errors.dart';
 import '../theme.dart';
 
 /// 播放器页：mpv 内核（media_kit），直连播放，
@@ -110,7 +111,7 @@ class _PlayerPageState extends State<PlayerPage> {
       _started = true;
       if (mounted) setState(() {});
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = friendlyError(e));
     }
   }
 
@@ -271,8 +272,8 @@ class _PlayerPageState extends State<PlayerPage> {
     final current = _player.state.track;
     final subtitleOptions = <_TvMenuOption>[
       for (final t in _player.state.tracks.subtitle)
-        _TvMenuOption(
-            _trackLabel(t), t == current.subtitle, () => _player.setSubtitleTrack(t)),
+        _TvMenuOption(_trackLabel(t), t == current.subtitle,
+            () => _player.setSubtitleTrack(t)),
     ];
     final external = _source?.streams.where((s) =>
             s.type == 'Subtitle' && s.isExternal && s.deliveryUrl != null) ??
@@ -289,7 +290,8 @@ class _PlayerPageState extends State<PlayerPage> {
     }
     final audioOptions = <_TvMenuOption>[
       for (final t in _player.state.tracks.audio)
-        _TvMenuOption(_trackLabel(t), t == current.audio, () => _player.setAudioTrack(t)),
+        _TvMenuOption(
+            _trackLabel(t), t == current.audio, () => _player.setAudioTrack(t)),
     ];
     final speedOptions = <_TvMenuOption>[
       for (final r in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
@@ -485,8 +487,8 @@ class _TvControlsState extends State<_TvControls> {
   int _focusedIndex = 1; // 默认聚焦播放/暂停
   Timer? _hideTimer;
   final _focusNode = FocusNode(debugLabel: 'tv-controls');
-  List<({IconData icon, String label, bool big, VoidCallback onTap})>
-      _actions = const [];
+  List<({IconData icon, String label, bool big, VoidCallback onTap})> _actions =
+      const [];
 
   Player get _player => widget.player;
 
@@ -639,7 +641,11 @@ class _TvControlsState extends State<_TvControls> {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Colors.black54, Colors.transparent, Colors.transparent],
+                colors: [
+                  Colors.black54,
+                  Colors.transparent,
+                  Colors.transparent
+                ],
                 stops: [0, 0.35, 1],
               ),
             ),
@@ -984,8 +990,7 @@ class _TvSettingsDialogState extends State<_TvSettingsDialog> {
       }
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.goBack ||
-        key == LogicalKeyboardKey.escape) {
+    if (key == LogicalKeyboardKey.goBack || key == LogicalKeyboardKey.escape) {
       Navigator.of(context).pop();
       return KeyEventResult.handled;
     }
@@ -996,8 +1001,7 @@ class _TvSettingsDialogState extends State<_TvSettingsDialog> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     if (_tabs.isEmpty) {
-      return const AlertDialog(
-          title: Text('播放设置'), content: Text('没有可用选项'));
+      return const AlertDialog(title: Text('播放设置'), content: Text('没有可用选项'));
     }
 
     return Focus(
@@ -1091,7 +1095,7 @@ class _TvTabChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
         color: focused
-            ? scheme.primary
+            ? kAccentFill
             : (selected
                 ? scheme.primary.withValues(alpha: 0.18)
                 : Colors.transparent),
@@ -1100,9 +1104,7 @@ class _TvTabChip extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          color: focused
-              ? scheme.onPrimary
-              : (selected ? scheme.primary : null),
+          color: focused ? Colors.white : (selected ? scheme.primary : null),
           fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
         ),
       ),

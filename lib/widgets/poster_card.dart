@@ -138,12 +138,12 @@ class _PosterCardState extends State<PosterCard> {
                               right: 6,
                               child: Container(
                                 padding: const EdgeInsets.all(3),
-                                decoration: BoxDecoration(
-                                  color: scheme.primary,
+                                decoration: const BoxDecoration(
+                                  color: kAccentFill,
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(Icons.check,
-                                    size: 14, color: scheme.onPrimary),
+                                child: const Icon(Icons.check,
+                                    size: 14, color: Colors.white),
                               ),
                             ),
                           if (progress > 0 && progress < 1)
