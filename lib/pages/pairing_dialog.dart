@@ -130,6 +130,7 @@ class _PairingDialogState extends State<PairingDialog> {
       ),
       actions: [
         TextButton(
+          autofocus: context.watch<AppState>().tvMode,
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),

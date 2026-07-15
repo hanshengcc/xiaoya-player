@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../api/models.dart';
 import '../state/app_state.dart';
+import '../widgets/tv_focus_highlight.dart';
 import 'pairing_dialog.dart';
 
 /// 服务器管理页：列表 + 添加登录。首次启动时作为入口。
@@ -23,40 +24,42 @@ class ServersPage extends StatelessWidget {
               itemBuilder: (context, i) {
                 final s = state.servers[i];
                 final active = state.activeServer == s;
-                return ListTile(
-                  leading: Icon(
-                    s.type == ServerType.emby
-                        ? Icons.dns_outlined
-                        : Icons.storage_outlined,
-                    color: active
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                  ),
-                  title: Text(s.name),
-                  subtitle: Text('${s.baseUrl} · ${s.username}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (active)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 4),
-                          child: Icon(Icons.check_circle, size: 20),
+                return TvFocusHighlight(
+                  child: ListTile(
+                    autofocus: i == 0 && state.tvMode,
+                    leading: Icon(
+                      s.type == ServerType.emby
+                          ? Icons.dns_outlined
+                          : Icons.storage_outlined,
+                      color:
+                          active ? Theme.of(context).colorScheme.primary : null,
+                    ),
+                    title: Text(s.name),
+                    subtitle: Text('${s.baseUrl} · ${s.username}'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (active)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 4),
+                            child: Icon(Icons.check_circle, size: 20),
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          tooltip: '删除',
+                          onPressed: () => _confirmDelete(context, s),
                         ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        tooltip: '删除',
-                        onPressed: () => _confirmDelete(context, s),
-                      ),
-                    ],
+                      ],
+                    ),
+                    onTap: () {
+                      if (s.isLoggedIn) {
+                        state.switchServer(s);
+                        Navigator.of(context).popUntil((r) => r.isFirst);
+                      } else {
+                        _showAddSheet(context, relogin: s);
+                      }
+                    },
                   ),
-                  onTap: () {
-                    if (s.isLoggedIn) {
-                      state.switchServer(s);
-                      Navigator.of(context).popUntil((r) => r.isFirst);
-                    } else {
-                      _showAddSheet(context, relogin: s);
-                    }
-                  },
                 );
               },
             ),
@@ -66,20 +69,25 @@ class ServersPage extends StatelessWidget {
         children: [
           // 局域网扫码配对：浏览器端起不了 HTTP 服务，web 隐藏
           if (!kIsWeb)
-            FloatingActionButton.extended(
-              heroTag: 'pair',
-              onPressed: () => showDialog(
-                  context: context,
-                  builder: (_) => const PairingDialog()),
-              icon: const Icon(Icons.qr_code_2),
-              label: const Text('手机扫码配对'),
+            TvFocusHighlight(
+              borderRadius: const BorderRadius.all(Radius.circular(16)),
+              child: FloatingActionButton.extended(
+                heroTag: 'pair',
+                onPressed: () => showDialog(
+                    context: context, builder: (_) => const PairingDialog()),
+                icon: const Icon(Icons.qr_code_2),
+                label: const Text('手机扫码配对'),
+              ),
             ),
           const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            heroTag: 'add',
-            onPressed: () => _showAddSheet(context),
-            icon: const Icon(Icons.add),
-            label: const Text('添加服务器'),
+          TvFocusHighlight(
+            borderRadius: const BorderRadius.all(Radius.circular(16)),
+            child: FloatingActionButton.extended(
+              heroTag: 'add',
+              onPressed: () => _showAddSheet(context),
+              icon: const Icon(Icons.add),
+              label: const Text('添加服务器'),
+            ),
           ),
         ],
       ),
@@ -127,6 +135,7 @@ class _EmptyHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final tvMode = context.watch<AppState>().tvMode;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -142,10 +151,14 @@ class _EmptyHint extends StatelessWidget {
                   .bodyMedium
                   ?.copyWith(color: scheme.onSurfaceVariant)),
           const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add),
-            label: const Text('添加服务器'),
+          TvFocusHighlight(
+            borderRadius: const BorderRadius.all(Radius.circular(24)),
+            child: FilledButton.icon(
+              autofocus: tvMode,
+              onPressed: onAdd,
+              icon: const Icon(Icons.add),
+              label: const Text('添加服务器'),
+            ),
           ),
         ],
       ),
@@ -220,6 +233,7 @@ class _AddServerFormState extends State<_AddServerForm> {
   @override
   Widget build(BuildContext context) {
     final isRelogin = widget.relogin != null;
+    final tvMode = context.watch<AppState>().tvMode;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -234,20 +248,19 @@ class _AddServerFormState extends State<_AddServerForm> {
               const SizedBox(height: 16),
               SegmentedButton<ServerType>(
                 segments: const [
-                  ButtonSegment(
-                      value: ServerType.emby, label: Text('Emby')),
+                  ButtonSegment(value: ServerType.emby, label: Text('Emby')),
                   ButtonSegment(
                       value: ServerType.jellyfin, label: Text('Jellyfin')),
                 ],
                 selected: {_type},
-                onSelectionChanged: isRelogin
-                    ? null
-                    : (s) => setState(() => _type = s.first),
+                onSelectionChanged:
+                    isRelogin ? null : (s) => setState(() => _type = s.first),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _url,
                 enabled: !isRelogin,
+                autofocus: tvMode && !isRelogin,
                 decoration: const InputDecoration(
                   labelText: '服务器地址',
                   hintText: 'https://emby.example.com:8096',
@@ -286,6 +299,7 @@ class _AddServerFormState extends State<_AddServerForm> {
               TextFormField(
                 controller: _password,
                 obscureText: true,
+                autofocus: tvMode && isRelogin,
                 decoration: const InputDecoration(
                   labelText: '密码',
                   prefixIcon: Icon(Icons.lock_outline),
@@ -295,8 +309,8 @@ class _AddServerFormState extends State<_AddServerForm> {
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(_error!,
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.error)),
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error)),
               ],
               const SizedBox(height: 20),
               FilledButton(

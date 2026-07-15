@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -5,7 +7,9 @@ import 'package:provider/provider.dart';
 import '../api/emby_api.dart';
 import '../api/models.dart';
 import '../state/app_state.dart';
+import '../theme.dart';
 import '../utils/format.dart';
+import '../widgets/tv_focus_highlight.dart';
 import 'player_page.dart';
 
 /// 详情页：电影直接给播放按钮；剧集展示季 / 集列表。
@@ -115,15 +119,25 @@ class _DetailPageState extends State<DetailPage> {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 260,
+            expandedHeight: 280,
             pinned: true,
+            leading: Padding(
+              padding: const EdgeInsets.all(8),
+              child: _GlassIconButton(
+                icon: Icons.arrow_back,
+                onTap: () => Navigator.of(context).maybePop(),
+              ),
+            ),
             actions: [
-              IconButton(
-                icon: Icon(
-                    item.isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: item.isFavorite ? Colors.redAccent : null),
-                tooltip: '收藏',
-                onPressed: _toggleFavorite,
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: _GlassIconButton(
+                  icon: item.isFavorite
+                      ? Icons.favorite
+                      : Icons.favorite_border,
+                  color: item.isFavorite ? Colors.redAccent : Colors.white,
+                  onTap: _toggleFavorite,
+                ),
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
@@ -145,9 +159,11 @@ class _DetailPageState extends State<DetailPage> {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
+                          Colors.black.withValues(alpha: 0.35),
                           Colors.transparent,
                           Theme.of(context).scaffoldBackgroundColor,
                         ],
+                        stops: const [0, 0.4, 1],
                       ),
                     ),
                   ),
@@ -197,8 +213,7 @@ class _DetailPageState extends State<DetailPage> {
                   ],
                   const SizedBox(height: 16),
                   if (item.isVideo) _buildPlayButtons(item),
-                  if (item.overview != null &&
-                      item.overview!.isNotEmpty) ...[
+                  if (item.overview != null && item.overview!.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text(item.overview!,
                         style: Theme.of(context)
@@ -222,21 +237,29 @@ class _DetailPageState extends State<DetailPage> {
 
   Widget _buildPlayButtons(MediaItem item) {
     final hasResume = item.resumePosition > Duration.zero;
+    final tvMode = context.watch<AppState>().tvMode;
     return Row(
       children: [
-        FilledButton.icon(
-          onPressed: () => _play(item),
-          icon: const Icon(Icons.play_arrow),
-          label: Text(hasResume
-              ? '继续播放 ${formatDuration(item.resumePosition)}'
-              : '播放'),
+        TvFocusHighlight(
+          borderRadius: const BorderRadius.all(Radius.circular(24)),
+          child: FilledButton.icon(
+            autofocus: tvMode,
+            onPressed: () => _play(item),
+            icon: const Icon(Icons.play_arrow),
+            label: Text(hasResume
+                ? '继续播放 ${formatDuration(item.resumePosition)}'
+                : '播放'),
+          ),
         ),
         if (hasResume) ...[
           const SizedBox(width: 12),
-          OutlinedButton.icon(
-            onPressed: () => _play(item, fromStart: true),
-            icon: const Icon(Icons.replay),
-            label: const Text('从头播放'),
+          TvFocusHighlight(
+            borderRadius: const BorderRadius.all(Radius.circular(24)),
+            child: OutlinedButton.icon(
+              onPressed: () => _play(item, fromStart: true),
+              icon: const Icon(Icons.replay),
+              label: const Text('从头播放'),
+            ),
           ),
         ],
       ],
@@ -244,16 +267,23 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   Widget _buildSeasonSelector() {
+    // 剧集详情页没有播放按钮，季选择器是唯一入口——没有播放按钮抢
+    // autofocus 时，电视上落地要有个默认焦点，否则遥控器按了没反应
+    final tvMode = context.watch<AppState>().tvMode;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
-        children: _seasons
-            .map((s) => Padding(
+        children: _seasons.indexed
+            .map((r) => Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(s.name),
-                    selected: _selectedSeasonId == s.id,
-                    onSelected: (_) => _selectSeason(s.id),
+                  child: TvFocusHighlight(
+                    borderRadius: const BorderRadius.all(Radius.circular(20)),
+                    child: ChoiceChip(
+                      autofocus: tvMode && r.$1 == 0,
+                      label: Text(r.$2.name),
+                      selected: _selectedSeasonId == r.$2.id,
+                      onSelected: (_) => _selectSeason(r.$2.id),
+                    ),
                   ),
                 ))
             .toList(),
@@ -268,53 +298,56 @@ class _DetailPageState extends State<DetailPage> {
       itemBuilder: (context, i) {
         final ep = _episodes[i];
         final progress = (ep.playedPercentage ?? 0) / 100.0;
-        return ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-          leading: SizedBox(
-            width: 120,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: _api.imageUrl(ep.id,
-                          tag: ep.primaryImageTag, maxWidth: 300),
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) =>
-                          Container(color: scheme.surfaceContainerHighest),
-                    ),
-                    if (progress > 0 && progress < 1)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: LinearProgressIndicator(
-                            value: progress, minHeight: 3),
+        return TvFocusHighlight(
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
+          child: ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            leading: SizedBox(
+              width: 120,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CachedNetworkImage(
+                        imageUrl: _api.imageUrl(ep.id,
+                            tag: ep.primaryImageTag, maxWidth: 300),
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) =>
+                            Container(color: scheme.surfaceContainerHighest),
                       ),
-                  ],
+                      if (progress > 0 && progress < 1)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: LinearProgressIndicator(
+                              value: progress, minHeight: 3),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          title: Text(
-            '${ep.indexNumber != null ? '${ep.indexNumber}. ' : ''}${ep.name}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Row(
-            children: [
-              if (ep.runTime != null) Text(formatRuntime(ep.runTime!)),
-              if (ep.played) ...[
-                const SizedBox(width: 8),
-                Icon(Icons.check_circle, size: 14, color: scheme.primary),
+            title: Text(
+              '${ep.indexNumber != null ? '${ep.indexNumber}. ' : ''}${ep.name}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Row(
+              children: [
+                if (ep.runTime != null) Text(formatRuntime(ep.runTime!)),
+                if (ep.played) ...[
+                  const SizedBox(width: 8),
+                  Icon(Icons.check_circle, size: 14, color: scheme.primary),
+                ],
               ],
-            ],
+            ),
+            onTap: () => _play(ep),
           ),
-          onTap: () => _play(ep),
         );
       },
     );
@@ -335,6 +368,42 @@ class _Badge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(text, style: Theme.of(context).textTheme.labelSmall),
+    );
+  }
+}
+
+/// 悬浮在图片上的毛玻璃圆形按钮——返回、收藏都用这个，
+/// 在任意背景图上都清晰可辨，不用像素抠一个纯色描边。
+class _GlassIconButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _GlassIconButton({
+    required this.icon,
+    required this.onTap,
+    this.color = Colors.white,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Material(
+          color: Colors.black.withValues(alpha: 0.28),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Icon(icon, color: color, size: 22),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -30,3 +30,16 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # 字体直接打包，不用 google_fonts 运行时联网拉取——国内网络访问
+  # Google 字体 CDN 常被墙，联网取字体在目标用户的环境里不可靠。
+  fonts:
+    - family: PlusJakartaSans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans.ttf
+          weight: 400
+        - asset: assets/fonts/PlusJakartaSans.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans.ttf
+          weight: 600
+        - asset: assets/fonts/PlusJakartaSans.ttf
+          weight: 700

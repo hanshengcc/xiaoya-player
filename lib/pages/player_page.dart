@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../api/emby_api.dart';
 import '../api/models.dart';
 import '../state/app_state.dart';
+import '../theme.dart';
 
 /// 播放器页：mpv 内核（media_kit），直连播放，
 /// 每 10 秒向服务器上报进度，退出时上报停止位置。
@@ -228,6 +230,7 @@ class _PlayerPageState extends State<PlayerPage> {
           children: [
             Video(controller: _controller, controls: NoVideoControls),
             _TvControls(
+              key: ValueKey(_current.id),
               player: _player,
               title: _title,
               isEpisode: _current.type == 'Episode',
@@ -261,82 +264,47 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
-  /// 电视端播放设置面板：D-pad 上下移动焦点、确认选中、返回关闭。
+  /// 电视端播放设置面板：自管理上下移动 + 确认选中，不依赖框架默认方向
+  /// 焦点穿透（ListView 在部分平台会把方向键当滚动而非焦点移动处理，
+  /// 导致遥控器上下键选不动、确认键总是命中第一项）。
   Future<void> _showTvMenu() async {
     final current = _player.state.track;
-    final subtitleOptions = <(SubtitleTrack, String, bool)>[
+    final subtitleOptions = <_TvMenuOption>[
       for (final t in _player.state.tracks.subtitle)
-        (t, _trackLabel(t), t == current.subtitle),
+        _TvMenuOption(
+            _trackLabel(t), t == current.subtitle, () => _player.setSubtitleTrack(t)),
     ];
     final external = _source?.streams.where((s) =>
             s.type == 'Subtitle' && s.isExternal && s.deliveryUrl != null) ??
         const <MediaStreamInfo>[];
     for (final s in external) {
       final url = _api.absoluteUrl(s.deliveryUrl!);
-      subtitleOptions.add((
-        SubtitleTrack.uri(url, title: s.displayTitle, language: s.language),
+      final track =
+          SubtitleTrack.uri(url, title: s.displayTitle, language: s.language);
+      subtitleOptions.add(_TvMenuOption(
         '外挂 · ${s.displayTitle ?? s.language ?? s.index}',
         current.subtitle.id == url,
+        () => _player.setSubtitleTrack(track),
       ));
     }
-    final audioOptions = <(AudioTrack, String, bool)>[
+    final audioOptions = <_TvMenuOption>[
       for (final t in _player.state.tracks.audio)
-        (t, _trackLabel(t), t == current.audio),
+        _TvMenuOption(_trackLabel(t), t == current.audio, () => _player.setAudioTrack(t)),
+    ];
+    final speedOptions = <_TvMenuOption>[
+      for (final r in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
+        _TvMenuOption(r == 1.0 ? '正常' : '${r}x', _player.state.rate == r,
+            () => _player.setRate(r)),
     ];
 
     if (!mounted) return;
     await showDialog(
       context: context,
-      builder: (context) {
-        final scheme = Theme.of(context).colorScheme;
-        Widget header(String text) => Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(text,
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelLarge
-                      ?.copyWith(color: scheme.primary)),
-            );
-        Widget option(String label, bool selected, VoidCallback onTap,
-                {bool autofocus = false}) =>
-            ListTile(
-              autofocus: autofocus,
-              dense: true,
-              leading: Icon(Icons.check,
-                  size: 18,
-                  color: selected ? scheme.primary : Colors.transparent),
-              title: Text(label),
-              onTap: () {
-                onTap();
-                Navigator.of(context).pop();
-              },
-            );
-
-        return AlertDialog(
-          title: const Text('播放设置'),
-          contentPadding: const EdgeInsets.only(bottom: 8),
-          content: SizedBox(
-            width: 380,
-            height: 420,
-            child: ListView(
-              children: [
-                header('字幕'),
-                for (final (i, o) in subtitleOptions.indexed)
-                  option(o.$2, o.$3,
-                      () => _player.setSubtitleTrack(o.$1),
-                      autofocus: i == 0),
-                header('音轨'),
-                for (final o in audioOptions)
-                  option(o.$2, o.$3, () => _player.setAudioTrack(o.$1)),
-                header('倍速'),
-                for (final r in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
-                  option(r == 1.0 ? '正常' : '${r}x',
-                      _player.state.rate == r, () => _player.setRate(r)),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (context) => _TvSettingsDialog(sections: [
+        ('字幕', subtitleOptions),
+        ('音轨', audioOptions),
+        ('倍速', speedOptions),
+      ]),
     );
   }
 
@@ -483,17 +451,23 @@ class _PlayerPageState extends State<PlayerPage> {
 
 /// Netflix 式电视控制层：
 /// - 隐藏时：确认=暂停并呼出；左右=±10 秒（同时短暂显示）；上下=呼出
-/// - 显示时：D-pad 在按钮间移动焦点，确认激活；4 秒无操作自动隐藏（暂停时常驻）
-/// - 按钮行：快退 / 播放暂停 / 快进 / 下一集(剧集) / 字幕和音频 / 倍速
+/// - 显示时：左右自行移动按钮焦点，确认激活；4 秒无操作自动隐藏（暂停时常驻）
+/// - 按钮行：快退 / 播放暂停 / 快进 / 下一集(剧集) / 字幕和音频
+///
+/// 焦点导航与激活全部自管理（不用框架默认的方向焦点穿透 / Activate
+/// intent）：不同电视盒子、不同遥控器对 Flutter 隐式焦点系统支持不一致，
+/// 曾经导致按钮切不动、字幕面板打不开。这里只依赖固定的按键集合，稳定
+/// 可控。
 class _TvControls extends StatefulWidget {
   final Player player;
   final String title;
   final bool isEpisode;
   final VoidCallback onNextEpisode;
-  final VoidCallback onShowSettings;
+  final Future<void> Function() onShowSettings;
   final void Function(Duration) onSeekBy;
 
   const _TvControls({
+    super.key,
     required this.player,
     required this.title,
     required this.isEpisode,
@@ -508,9 +482,11 @@ class _TvControls extends StatefulWidget {
 
 class _TvControlsState extends State<_TvControls> {
   bool _visible = true;
+  int _focusedIndex = 1; // 默认聚焦播放/暂停
   Timer? _hideTimer;
-  final _rootFocus = FocusNode(debugLabel: 'tv-controls-root');
-  final _playFocus = FocusNode(debugLabel: 'tv-play');
+  final _focusNode = FocusNode(debugLabel: 'tv-controls');
+  List<({IconData icon, String label, bool big, VoidCallback onTap})>
+      _actions = const [];
 
   Player get _player => widget.player;
 
@@ -519,15 +495,14 @@ class _TvControlsState extends State<_TvControls> {
     super.initState();
     _restartHideTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _playFocus.requestFocus();
+      if (mounted) _focusNode.requestFocus();
     });
   }
 
   @override
   void dispose() {
     _hideTimer?.cancel();
-    _rootFocus.dispose();
-    _playFocus.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -539,71 +514,105 @@ class _TvControlsState extends State<_TvControls> {
     });
   }
 
-  void _show({bool focusPlay = true}) {
-    if (!_visible) {
-      setState(() => _visible = true);
-      if (focusPlay) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _playFocus.requestFocus();
-        });
-      }
-    }
+  void _show() {
+    if (!_visible) setState(() => _visible = true);
     _restartHideTimer();
   }
 
   void _hide() {
     if (!_visible) return;
     setState(() => _visible = false);
-    _rootFocus.requestFocus();
   }
+
+  void _move(int delta) {
+    if (_actions.isEmpty) return;
+    setState(() =>
+        _focusedIndex = (_focusedIndex + delta).clamp(0, _actions.length - 1));
+    _restartHideTimer();
+  }
+
+  void _activate() {
+    if (_focusedIndex >= 0 && _focusedIndex < _actions.length) {
+      _actions[_focusedIndex].onTap();
+    }
+    _restartHideTimer();
+  }
+
+  bool _isConfirm(LogicalKeyboardKey key) =>
+      key == LogicalKeyboardKey.select ||
+      key == LogicalKeyboardKey.enter ||
+      key == LogicalKeyboardKey.numpadEnter ||
+      key == LogicalKeyboardKey.space ||
+      key == LogicalKeyboardKey.mediaPlayPause ||
+      key == LogicalKeyboardKey.gameButtonA;
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
 
-    // 菜单键任何时候都开字幕/音轨/倍速面板
+    // 菜单键 / 部分遥控器的独立字幕键：任何时候都开设置面板
     if (key == LogicalKeyboardKey.contextMenu ||
-        key == LogicalKeyboardKey.f10) {
-      widget.onShowSettings();
+        key == LogicalKeyboardKey.f10 ||
+        key == LogicalKeyboardKey.closedCaptionToggle) {
+      _openSettings();
       return KeyEventResult.handled;
     }
 
-    if (_visible) {
-      // 显示中：任何按键都续命；导航与激活交给焦点系统
-      _restartHideTimer();
-      if (key == LogicalKeyboardKey.goBack ||
-          key == LogicalKeyboardKey.escape) {
-        _hide();
+    if (!_visible) {
+      if (key == LogicalKeyboardKey.arrowRight) {
+        widget.onSeekBy(const Duration(seconds: 10));
+        _show();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowLeft) {
+        widget.onSeekBy(const Duration(seconds: -10));
+        _show();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowUp ||
+          key == LogicalKeyboardKey.arrowDown) {
+        _show();
+        return KeyEventResult.handled;
+      }
+      if (_isConfirm(key)) {
+        _player.playOrPause();
+        _show();
         return KeyEventResult.handled;
       }
       return KeyEventResult.ignored;
     }
 
-    // 隐藏中
+    // 显示中：左右移动按钮焦点，确认激活
     if (key == LogicalKeyboardKey.arrowRight) {
-      widget.onSeekBy(const Duration(seconds: 10));
-      _show(focusPlay: false);
+      _move(1);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowLeft) {
-      widget.onSeekBy(const Duration(seconds: -10));
-      _show(focusPlay: false);
+      _move(-1);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowUp ||
         key == LogicalKeyboardKey.arrowDown) {
-      _show();
+      _restartHideTimer();
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.select ||
-        key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.space ||
-        key == LogicalKeyboardKey.mediaPlayPause) {
-      _player.playOrPause();
-      _show();
+    if (_isConfirm(key)) {
+      _activate();
       return KeyEventResult.handled;
     }
+    if (key == LogicalKeyboardKey.goBack || key == LogicalKeyboardKey.escape) {
+      _hide();
+      return KeyEventResult.handled;
+    }
+    _restartHideTimer();
     return KeyEventResult.ignored;
+  }
+
+  /// 打开设置面板并在关闭后抢回焦点——弹窗会把系统焦点带走，
+  /// 不手动要回来的话遥控器后续按键会“悄悄”没反应。
+  Future<void> _openSettings() async {
+    await widget.onShowSettings();
+    if (mounted) _focusNode.requestFocus();
   }
 
   String _fmt(Duration d) {
@@ -616,24 +625,25 @@ class _TvControlsState extends State<_TvControls> {
   @override
   Widget build(BuildContext context) {
     return Focus(
-      focusNode: _rootFocus,
+      focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: _onKey,
       child: AnimatedOpacity(
         opacity: _visible ? 1 : 0,
-        duration: const Duration(milliseconds: 200),
-        child: ExcludeFocus(
-          excluding: !_visible,
+        duration: AppMotion.normal,
+        curve: AppMotion.curve,
+        child: IgnorePointer(
+          ignoring: !_visible,
           child: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Colors.black54, Colors.transparent, Colors.black87],
-                stops: [0, 0.4, 1],
+                colors: [Colors.black54, Colors.transparent, Colors.transparent],
+                stops: [0, 0.35, 1],
               ),
             ),
-            padding: const EdgeInsets.fromLTRB(48, 24, 48, 32),
+            padding: const EdgeInsets.fromLTRB(40, 24, 40, 28),
             child: Column(
               children: [
                 Row(
@@ -644,15 +654,25 @@ class _TvControlsState extends State<_TvControls> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            color: Colors.white, fontSize: 20),
+                          color: Colors.white,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const Spacer(),
-                _buildSeekBar(),
-                const SizedBox(height: 20),
-                _buildButtonRow(),
+                _FrostedPanel(
+                  child: Column(
+                    children: [
+                      _buildSeekBar(),
+                      const SizedBox(height: 18),
+                      _buildButtonRow(),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -698,104 +718,135 @@ class _TvControlsState extends State<_TvControls> {
   }
 
   Widget _buildButtonRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _TvButton(
-          icon: Icons.replay_10,
-          label: '快退',
-          onTap: () {
-            widget.onSeekBy(const Duration(seconds: -10));
-            _restartHideTimer();
-          },
-        ),
-        StreamBuilder<bool>(
-          stream: _player.stream.playing,
-          initialData: _player.state.playing,
-          builder: (_, snap) => _TvButton(
-            focusNode: _playFocus,
-            icon: (snap.data ?? true) ? Icons.pause : Icons.play_arrow,
-            label: (snap.data ?? true) ? '暂停' : '播放',
+    return StreamBuilder<bool>(
+      stream: _player.stream.playing,
+      initialData: _player.state.playing,
+      builder: (_, snap) {
+        final playing = snap.data ?? true;
+        _actions = [
+          (
+            icon: Icons.replay_10,
+            label: '快退',
+            big: false,
+            onTap: () => widget.onSeekBy(const Duration(seconds: -10)),
+          ),
+          (
+            icon: playing ? Icons.pause : Icons.play_arrow,
+            label: playing ? '暂停' : '播放',
             big: true,
-            onTap: () {
-              _player.playOrPause();
-              _restartHideTimer();
-            },
+            onTap: () => _player.playOrPause(),
           ),
-        ),
-        _TvButton(
-          icon: Icons.forward_10,
-          label: '快进',
-          onTap: () {
-            widget.onSeekBy(const Duration(seconds: 10));
-            _restartHideTimer();
-          },
-        ),
-        if (widget.isEpisode)
-          _TvButton(
-            icon: Icons.skip_next,
-            label: '下一集',
-            onTap: widget.onNextEpisode,
+          (
+            icon: Icons.forward_10,
+            label: '快进',
+            big: false,
+            onTap: () => widget.onSeekBy(const Duration(seconds: 10)),
           ),
-        _TvButton(
-          icon: Icons.subtitles,
-          label: '字幕和音频',
-          onTap: widget.onShowSettings,
+          if (widget.isEpisode)
+            (
+              icon: Icons.skip_next,
+              label: '下一集',
+              big: false,
+              onTap: widget.onNextEpisode,
+            ),
+          (
+            icon: Icons.subtitles,
+            label: '字幕和音频',
+            big: false,
+            onTap: _openSettings,
+          ),
+        ];
+        if (_focusedIndex >= _actions.length) {
+          _focusedIndex = _actions.length - 1;
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (final (i, a) in _actions.indexed)
+              _TvButton(
+                icon: a.icon,
+                label: a.label,
+                big: a.big,
+                focused: i == _focusedIndex,
+                onTap: () {
+                  setState(() => _focusedIndex = i);
+                  a.onTap();
+                  _restartHideTimer();
+                },
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// 毛玻璃底栏：进度条 + 按钮行的容器，磨砂材质质感（tvOS 播放器同款做法）。
+class _FrostedPanel extends StatelessWidget {
+  final Widget child;
+  const _FrostedPanel({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(28, 20, 28, 20),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: child,
         ),
-      ],
+      ),
     );
   }
 }
 
 /// 电视控制按钮：聚焦时白圈高亮 + 放大 + 底部文字。
-class _TvButton extends StatefulWidget {
+/// 焦点状态由外部（_TvControlsState）驱动，本身不持有 FocusNode。
+class _TvButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool big;
-  final FocusNode? focusNode;
+  final bool focused;
 
   const _TvButton({
     required this.icon,
     required this.label,
     required this.onTap,
+    required this.focused,
     this.big = false,
-    this.focusNode,
   });
 
   @override
-  State<_TvButton> createState() => _TvButtonState();
-}
-
-class _TvButtonState extends State<_TvButton> {
-  bool _focused = false;
-
-  @override
   Widget build(BuildContext context) {
-    final size = widget.big ? 64.0 : 52.0;
+    final size = big ? 64.0 : 52.0;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           AnimatedScale(
-            scale: _focused ? 1.15 : 1.0,
+            scale: focused ? 1.15 : 1.0,
             duration: const Duration(milliseconds: 120),
             child: Material(
-              color: _focused ? Colors.white : Colors.white12,
+              color: focused ? Colors.white : Colors.white12,
               shape: const CircleBorder(),
               child: InkWell(
-                focusNode: widget.focusNode,
-                onFocusChange: (f) => setState(() => _focused = f),
-                onTap: widget.onTap,
+                onTap: onTap,
                 customBorder: const CircleBorder(),
                 child: SizedBox(
                   width: size,
                   height: size,
                   child: Icon(
-                    widget.icon,
-                    size: widget.big ? 36 : 28,
-                    color: _focused ? Colors.black : Colors.white,
+                    icon,
+                    size: big ? 36 : 28,
+                    color: focused ? Colors.black : Colors.white,
                   ),
                 ),
               ),
@@ -803,13 +854,257 @@ class _TvButtonState extends State<_TvButton> {
           ),
           const SizedBox(height: 6),
           Text(
-            widget.label,
+            label,
             style: TextStyle(
-              color: _focused ? Colors.white : Colors.white60,
+              color: focused ? Colors.white : Colors.white60,
               fontSize: 12,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 电视设置面板的一个可选项（字幕/音轨/倍速三段共用）。
+class _TvMenuOption {
+  final String label;
+  final bool selected;
+  final VoidCallback onSelect;
+  _TvMenuOption(this.label, this.selected, this.onSelect);
+}
+
+/// 电视设置面板：Netflix 式分栏——顶部「字幕 / 音轨 / 倍速」横向切
+/// 换标签，下方纵向选具体项。左右切标签，下键从标签行落到列表，
+/// 上键在列表首项时回到标签行，确认选中并关闭。全部自管理，不依赖
+/// 框架默认方向焦点。
+class _TvSettingsDialog extends StatefulWidget {
+  final List<(String, List<_TvMenuOption>)> sections;
+  const _TvSettingsDialog({required this.sections});
+
+  @override
+  State<_TvSettingsDialog> createState() => _TvSettingsDialogState();
+}
+
+class _TvSettingsDialogState extends State<_TvSettingsDialog> {
+  final _focusNode = FocusNode(debugLabel: 'tv-settings');
+  late final List<(String, List<_TvMenuOption>)> _tabs =
+      widget.sections.where((s) => s.$2.isNotEmpty).toList();
+  int _tabIndex = 0;
+  bool _onTabs = true;
+  int _itemIndex = 0;
+
+  List<_TvMenuOption> get _currentOptions =>
+      _tabs.isEmpty ? const [] : _tabs[_tabIndex].$2;
+
+  @override
+  void initState() {
+    super.initState();
+    // 默认停在已选中项所在的标签
+    for (final (i, t) in _tabs.indexed) {
+      final sel = t.$2.indexWhere((o) => o.selected);
+      if (sel >= 0) {
+        _tabIndex = i;
+        _itemIndex = sel;
+        break;
+      }
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _changeTab(int delta) {
+    if (_tabs.length < 2) return;
+    setState(() {
+      _tabIndex = (_tabIndex + delta).clamp(0, _tabs.length - 1);
+      _itemIndex = 0;
+    });
+  }
+
+  void _moveItem(int delta) {
+    final n = _currentOptions.length;
+    if (n == 0) return;
+    setState(() => _itemIndex = (_itemIndex + delta).clamp(0, n - 1));
+  }
+
+  void _activate() {
+    if (_currentOptions.isEmpty) return;
+    _currentOptions[_itemIndex].onSelect();
+    Navigator.of(context).pop();
+  }
+
+  bool _isConfirm(LogicalKeyboardKey key) =>
+      key == LogicalKeyboardKey.select ||
+      key == LogicalKeyboardKey.enter ||
+      key == LogicalKeyboardKey.numpadEnter ||
+      key == LogicalKeyboardKey.space ||
+      key == LogicalKeyboardKey.gameButtonA;
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      if (_onTabs) _changeTab(-1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowRight) {
+      if (_onTabs) _changeTab(1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowDown) {
+      if (_onTabs) {
+        setState(() => _onTabs = false);
+      } else {
+        _moveItem(1);
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      if (!_onTabs) {
+        if (_itemIndex == 0) {
+          setState(() => _onTabs = true);
+        } else {
+          _moveItem(-1);
+        }
+      }
+      return KeyEventResult.handled;
+    }
+    if (_isConfirm(key)) {
+      if (_onTabs) {
+        setState(() => _onTabs = false);
+      } else {
+        _activate();
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.goBack ||
+        key == LogicalKeyboardKey.escape) {
+      Navigator.of(context).pop();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    if (_tabs.isEmpty) {
+      return const AlertDialog(
+          title: Text('播放设置'), content: Text('没有可用选项'));
+    }
+
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: AlertDialog(
+        title: const Text('播放设置'),
+        contentPadding: const EdgeInsets.only(bottom: 8),
+        content: SizedBox(
+          width: 420,
+          height: 420,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    for (final (i, t) in _tabs.indexed)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _TvTabChip(
+                          label: t.$1,
+                          selected: i == _tabIndex,
+                          focused: _onTabs && i == _tabIndex,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _currentOptions.length,
+                  itemBuilder: (context, i) {
+                    final o = _currentOptions[i];
+                    final focused = !_onTabs && i == _itemIndex;
+                    return Container(
+                      color: focused
+                          ? scheme.primary.withValues(alpha: 0.18)
+                          : null,
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.check,
+                            size: 18,
+                            color: o.selected
+                                ? scheme.primary
+                                : Colors.transparent),
+                        title: Text(o.label,
+                            style: focused
+                                ? TextStyle(
+                                    color: scheme.primary,
+                                    fontWeight: FontWeight.bold)
+                                : null),
+                        onTap: () {
+                          o.onSelect();
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 设置面板顶部的标签胶囊：选中态描边高亮，聚焦态实心高亮。
+class _TvTabChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool focused;
+
+  const _TvTabChip({
+    required this.label,
+    required this.selected,
+    required this.focused,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: focused
+            ? scheme.primary
+            : (selected
+                ? scheme.primary.withValues(alpha: 0.18)
+                : Colors.transparent),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: focused
+              ? scheme.onPrimary
+              : (selected ? scheme.primary : null),
+          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+        ),
       ),
     );
   }

@@ -6,6 +6,7 @@ import '../api/models.dart';
 import '../state/app_state.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/section_row.dart';
+import '../widgets/tv_focus_highlight.dart';
 import 'detail_page.dart';
 import 'library_page.dart';
 import 'player_page.dart';
@@ -131,13 +132,15 @@ class _HomePageState extends State<HomePage> {
                                 title: '继续观看',
                                 height: 224,
                                 children: _resume
-                                    .map((e) => PosterCard(
-                                          item: e,
+                                    .indexed
+                                    .map((r) => PosterCard(
+                                          item: r.$2,
                                           width: 280,
                                           aspectRatio: 16 / 9,
-                                          imageUrl: _api.imageUrl(e.id,
+                                          autofocus: r.$1 == 0 && state.tvMode,
+                                          imageUrl: _api.imageUrl(r.$2.id,
                                               type: 'Primary', maxWidth: 480),
-                                          onTap: () => _openItem(e),
+                                          onTap: () => _openItem(r.$2),
                                         ))
                                     .toList(),
                               );
@@ -165,23 +168,31 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildLibraryChips() {
+    // 没有"继续观看"时，这里是首页第一个可聚焦元素，电视需要默认落焦点
+    final autofocusFirst =
+        context.read<AppState>().tvMode && _resume.isEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
         children: _views
-            .map((v) => ActionChip(
-                  avatar: Icon(
-                    v.collectionType == 'movies'
-                        ? Icons.movie_outlined
-                        : v.collectionType == 'tvshows'
-                            ? Icons.tv_outlined
-                            : Icons.folder_outlined,
-                    size: 18,
+            .indexed
+            .map((r) => TvFocusHighlight(
+                  borderRadius: const BorderRadius.all(Radius.circular(20)),
+                  child: ActionChip(
+                    autofocus: autofocusFirst && r.$1 == 0,
+                    avatar: Icon(
+                      r.$2.collectionType == 'movies'
+                          ? Icons.movie_outlined
+                          : r.$2.collectionType == 'tvshows'
+                              ? Icons.tv_outlined
+                              : Icons.folder_outlined,
+                      size: 18,
+                    ),
+                    label: Text(r.$2.name),
+                    onPressed: () => _openLibrary(r.$2),
                   ),
-                  label: Text(v.name),
-                  onPressed: () => _openLibrary(v),
                 ))
             .toList(),
       ),

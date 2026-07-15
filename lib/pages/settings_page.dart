@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../widgets/tv_focus_highlight.dart';
 
 /// 设置页：主题、账户。
 class SettingsPage extends StatelessWidget {
@@ -18,24 +19,34 @@ class SettingsPage extends StatelessWidget {
           RadioGroup<ThemeMode>(
             groupValue: state.themeMode,
             onChanged: (m) => state.setThemeMode(m!),
-            child: const Column(
+            child: Column(
               children: [
-                RadioListTile<ThemeMode>(
-                    title: Text('跟随系统'), value: ThemeMode.system),
-                RadioListTile<ThemeMode>(
-                    title: Text('浅色'), value: ThemeMode.light),
-                RadioListTile<ThemeMode>(
-                    title: Text('深色'), value: ThemeMode.dark),
+                TvFocusHighlight(
+                  child: RadioListTile<ThemeMode>(
+                      autofocus: state.tvMode,
+                      title: const Text('跟随系统'),
+                      value: ThemeMode.system),
+                ),
+                const TvFocusHighlight(
+                  child: RadioListTile<ThemeMode>(
+                      title: Text('浅色'), value: ThemeMode.light),
+                ),
+                const TvFocusHighlight(
+                  child: RadioListTile<ThemeMode>(
+                      title: Text('深色'), value: ThemeMode.dark),
+                ),
               ],
             ),
           ),
           const Divider(),
           const _SectionHeader('电视'),
-          SwitchListTile(
-            title: const Text('电视模式'),
-            subtitle: const Text('放大排版、遥控器按键适配（Android TV 自动开启）'),
-            value: state.tvMode,
-            onChanged: (v) => state.setTvMode(v),
+          TvFocusHighlight(
+            child: SwitchListTile(
+              title: const Text('电视模式'),
+              subtitle: const Text('放大排版、遥控器按键适配（Android TV 自动开启）'),
+              value: state.tvMode,
+              onChanged: (v) => state.setTvMode(v),
+            ),
           ),
           const Divider(),
           const _SectionHeader('账户'),
@@ -45,22 +56,25 @@ class SettingsPage extends StatelessWidget {
               title: Text(state.activeServer!.username),
               subtitle: Text(state.activeServer!.baseUrl),
             ),
-          ListTile(
-            leading: const Icon(Icons.logout),
-            title: const Text('退出登录'),
-            onTap: () async {
-              await context.read<AppState>().logout();
-              if (context.mounted) {
-                Navigator.of(context).popUntil((r) => r.isFirst);
-              }
-            },
+          TvFocusHighlight(
+            child: ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('退出登录'),
+              onTap: () async {
+                await context.read<AppState>().logout();
+                if (context.mounted) {
+                  Navigator.of(context).popUntil((r) => r.isFirst);
+                }
+              },
+            ),
           ),
           const Divider(),
           const _SectionHeader('关于'),
           const ListTile(
             leading: Icon(Icons.info_outline),
             title: Text('Xiaoya Player'),
-            subtitle: Text('v0.1.0 · Flutter + MPV (media_kit) · 支持 Emby / Jellyfin'),
+            subtitle:
+                Text('v0.1.0 · Flutter + MPV (media_kit) · 支持 Emby / Jellyfin'),
           ),
         ],
       ),

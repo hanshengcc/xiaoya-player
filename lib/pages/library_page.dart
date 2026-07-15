@@ -151,6 +151,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         return PosterCard(
                           item: item,
                           width: 160,
+                          autofocus: i == 0 && context.read<AppState>().tvMode,
                           imageUrl:
                               _api.imageUrl(item.id, tag: item.primaryImageTag),
                           onTap: () {
